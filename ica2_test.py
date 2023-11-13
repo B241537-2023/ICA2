@@ -4,7 +4,7 @@ import subprocess
 import string
 import pandas as pd
 
-#  OBTAININGE TAXON ID FROM USER  #
+#  OBTAININGE TAXON ID FROM USER
 
 
 def gettaxonid():
@@ -50,7 +50,7 @@ def gettaxonid():
     return taxonidlist, home_dir
 
 
-#  CHECKING FOR MULTIPLE RESULTS  #
+#  CHECKING FOR MULTIPLE RESULTS
 
 
 def checktaxid(idlist):
@@ -79,15 +79,7 @@ def checktaxid(idlist):
         return idlist
     return idlist
 
-
-#  OBTAINING NAME OF PROTEIN  #
-def getprotein(idlist):
-    # Ask the user to input the protein of interest
-    protchoice = input('\nPlease specify your family of Protein of interest for the %s taxon\n' % (idlist[0])).strip().lower()
-    return protchoice
-
-#  OBTAINING WORK DIRECTORY NAME  #
-
+#  OBTAINING WORK DIRECTORY NAME
 
 def get_available_name(base_name, existing_folders):
     number = 1
@@ -124,7 +116,7 @@ def getworkpath():
 
             if user_response == '1':
                 try:
-                    os.rmdir(folder_name)
+                    subprocess.call('rm -fr %s' % (folder_name), shell=True)
                     print(f"Folder '{folder_name}' removed.")
                 except OSError as e:
                     print(f"Error removing folder: {e}")
@@ -138,6 +130,14 @@ def getworkpath():
             else:
                 print("Invalid option. Please choose 1, 2, or 3.")
     
+
+# OTAINING NAME OF PROTEIN
+
+def getprotein (idlist):
+    # Ask the user to input the protein of interest
+	protchoice = input('\nPlease specify your family of Protein of interest for the %s taxon\n' % (idlist[0])).strip().lower()
+	return protchoice
+
 #  CREATING SPECIES, TAXID, ACCESSION AND PROTEIN LENGTH LISTS FROM ESEARCH RESULTS #
 
 
@@ -167,33 +167,13 @@ def listmaker(workpath):
 
 
 def checkseq(idlist, protchoice, workpath):
-    # Asks the user to input protein search option
-    choiceg = ""
-    print('\n')
-    print('Would you rather:\n\n1. eSearch with:\n\t"TaxonID: %s"\n\t"Protein name: %s"\n\nWARNING: conservation plot would not be as biologically significant\n\n\n2. eSearch with:\n\t"TaxonID: %s"\n\t"Protein name: %s"\n\t"Gene name: to be specified"\n\nWARNING: This would produce a biologically significant conservation plot, but fewer species will be covered' % (idlist[1], protchoice, idlist[1], protchoice))
-    print('\n')
-    # While True loop here acts as an error trap.
-    while True:
-        choice = input('Please input 1 or 2\n').strip()
-        # performing esearch with taxid, protein and gene name
-        if choice == '2':
-            choiceg = input('\nPlease enter the gene name\n').strip()
-            # performing esearch
-            subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s AND %s[Gene Name] NOT PARTIAL' | efetch -format docsum > %s/docsum.txt" % (idlist[1], protchoice, choiceg, workpath), shell=True)
-            # Running previous function will make all lists required to create the panda dataframe from results
-            protspecieslist, protspeciestaxidlist, protspeciesaccessionlist, protlengthlistint = listmaker(workpath)
-            break
-        # performing esearch with taxID and protein
-        elif choice =='1':
-            # performing esearch
-            equery = "esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format docsum > %s/docsum.txt" % (idlist[1], protchoice, workpath)
-            subprocess.call(equery, shell=True)
-            # Running previous function will make all lists required to create the panda dataframe from results   
-            protspecieslist, protspeciestaxidlist, protspeciesaccessionlist, protlengthlistint = listmaker(workpath)
-            break
-        else:
-            print('INVALID INPUT, please try again')
-
+     
+    # performing esearch
+    equery = "esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format docsum > %s/docsum.txt" % (idlist[1], protchoice, workpath)
+    print("Searching ...\n")
+    subprocess.call(equery, shell=True)
+    # Running previous function will make all lists required to create the panda dataframe from results   
+    protspecieslist, protspeciestaxidlist, protspeciesaccessionlist, protlengthlistint = listmaker(workpath)
     # generating panda dataframe using the lists created with function 4.0
     s1 = pd.Series(protspecieslist)
     s2 = pd.Series(protspeciestaxidlist)
@@ -207,38 +187,33 @@ def checkseq(idlist, protchoice, workpath):
     uniquespecies = len(df.drop_duplicates('Species Name'))
     # the following will occur if the total number of sequences found from the esearch is less than 10
     if totalseq < 10:
-        print('fewer than 10 sequences were found')
-        print('\n')
-        print('fewer than 10 sequences were found:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq, uniquespecies))
-        print('\n')
-        # Creating a list of species names 
-        protspeciesl = df['Species Name'].tolist()
-        # Creating a dictionary of Species : Sequence counts
-        numberoffasta = dict((x, protspeciesl.count(x)) for x in set(protspeciesl))
-        print('The number of FASTA sequences for each of the different species are displayed below:\n')
-        # all the unique species and their number of sequences are then displayed to the user
-        for key, value in numberoffasta.items():
-            print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
-        print('\n')
-        print('The results contain redundant sequences.\nFASTA sequences will be downloaded later, and redundant sequences will be removed.')
-        print('\n')
-        return protchoice, protspeciesl, choiceg, df
+        print('fewer than 10 sequences were found\n')
+        choices = input('Are you sure to do new search? y/n\n').strip().lower()
+        # continue search with other protein name
+        if choices == "y":
+            print('\n')
+            checkseq(idlist, workpath)
+        # stop search
+        elif choices == "n":
+            print('\nStop search\n')
+            exit(0)
+        else:
+            print('\nINVALID INPUT PLEASE TRY AGAIN')
     # the following will occur if the total number of unique sequences found	from the esearch is less than 10
     if uniquespecies < 5:
         print('\n')
         print('Fewer than 5 unique sequences were found:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq, uniquespecies))
-        print('\n')
-        # Creating a list of species names
-        protspeciesl = df['Species Name'].tolist()
-        # Creating a dictionary of Species : Sequence counts
-        numberoffasta = dict((x, protspeciesl.count(x)) for x in set(protspeciesl))
-        print('The number of FASTA sequences for each of the different species are displayed below:\n')
-        # all the unique species and their number of sequences are then displayed	to the user
-        for key, value in numberoffasta.items():
-            print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
-        print('\n')
-        print('The results contain redundant sequences.\nFASTA sequences will be downloaded later, and redundant sequences will be removed.')
-        return protchoice, protspecieslist, choiceg, df
+        choices = input('Are you sure to do new search? y/n\n').strip().lower()
+        # continue search with other protein name
+        if choices == "y":
+            print('\n')
+            checkseq(idlist, workpath)
+        # stop search
+        elif choices == "n":
+            print('\nStop search\n')
+            exit(0)
+        else:
+            print('\nINVALID INPUT PLEASE TRY AGAIN')
     # Prints esearch output summary: total number of sequences, number of unique species
     print('\n')
     print('Results from the esearch are displayed below:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq, uniquespecies))
@@ -263,14 +238,60 @@ def checkseq(idlist, protchoice, workpath):
     # Print the key of the dictionary (species), followed by the count (value) will be printed to the user
     for key, value in numberoffasta.items():
         print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
-    return protchoice, protspeciesl, choiceg, df
+    return protchoice, protspeciesl, df, workpath
 
 
 # DETERMINING IF THE OUTPUT IS THE DESIRED OUTPUT  #
 
 
-def change(idlist, protchoice, choiceg, home_dir, df, workpath):
-    return protchoice, idlist, choiceg, df, workpath
+def change(idlist, protchoice, df, workpath):
+    # While True loop acts as an error trap
+    while True:
+        finalanswer = input('\nWould you like to soldier on with the analsis? y/n\n').strip().lower()
+        # Creating the list of available options for the user
+        changelist = ['1', '2', '3']
+        print('\n\n')
+        # If finalanswer == 'y', the function ends
+        if finalanswer == 'y':
+            return protchoice, idlist, df, workpath
+        # If final answer == 'n', the script will ask the user which of the available esearch inputs they would like to use.
+        elif finalanswer == 'n':
+            print('\n')
+            print('your current search parameters are:\n\n1: [Taxon] %-25s [TaxonID] %-10s\n2: [Protein] %s\n' % (idlist[0], idlist[1], protchoice))
+            print('\n')
+            # While true loop acts as an error trap.
+            while True:
+                tochange = input('\nWhich would you like to change?\nEnter the digit:\n\t1 : To change Taxon,\n\t2 : To change Protein,\n\t3 : To change Taxon + Protein.\n').strip()
+                # Checks user input against the earlier created list ['1', '2', '3']
+                # if the user input is 1, the following will occur
+                if tochange == changelist[0]:
+                    subprocess.call('rm -fr %s' % (workpath), shell=True)
+                    idlist, home_dir = gettaxonid()
+                    idlist = checktaxid(idlist)
+                    protchoice, protspecieslist, df, workpath = checkseq(idlist, protchoice, workpath)
+                    protchoice, idlist, df, workpath = change(idlist, protchoice, df, workpath)
+                    return protchoice, idlist, df, workpath
+                # If input is 2, the following will occur
+                elif tochange == changelist[1]:
+                    subprocess.call('rm -fr %s' % (workpath), shell=True)
+                    protchoice = getprotein(idlist)
+                    protchoice, protspecieslist, df, workpath = checkseq(idlist, protchoice, workpath)
+                    protchoice, idlist, df, workpath  = change(idlist, protchoice, df, workpath)
+                    return protchoice, idlist, df, workpath
+                # If input is 3, the following will occur
+                elif tochange == changelist[2]:
+                    subprocess.call('rm -fr %s' % (workpath), shell=True)
+                    idlist, home_dir = gettaxonid()
+                    idlist = checktaxonid(idlist)
+                    protchoice  = getprotein(idlist)
+                    protchoice, protspecieslist, df, workpath = checkseq(idlist, protchoice, workpath)
+                    protchoice, idlist, df, workpath = change(idlist, protchoice, home_dir, df, workpath)
+                    return protchoice, idlist, df, workpath
+                else:
+                    print('INVALID INPUT')
+        else:
+            print('please try again')
+            return protchoice, idlist, df, workpath
 
 # WARNING THE USER OF THE PRESENCE OF SEQUENCES WITH LOW/HIGH STANDARD DEVIATIONS
 
@@ -413,7 +434,7 @@ def standarddeviationbelow(df, min, max, mean, std):
                     # the user is asked if they are happy with the removal of these sequences
                     print(stdbelowremove)
                     choices = input('\nyou have chosen for these sequences to be removed from the dataframe, are you happy with this decision? y/n\n').strip().lower()
-                    ## if the user is happy with their decision and inputs y, the datafram is saved with the selected sequences removed, the function ends
+                    # if the user is happy with their decision and inputs y, the datafram is saved with the selected sequences removed, the function ends
                     if choices == "y":
                         print('\n')
                         return newdf
@@ -484,16 +505,11 @@ def updatedataframe(df, idlist, protchoice, workpath):
 # DOWNLOAD FAST SEQUENCES
 
 
-def downloadfasta(idlist, protchoice, choiceg, workpath):
+def downloadfasta(idlist, protchoice, workpath):
     # a new folder is created for the storage of the downloaded fasta files
     os.mkdir('%s/fastafiles' % (workpath))
     print('\n\nDOWNLOADING FASTA FILES PLEASE WAIT')
-    # if the user decided to perform esearch with taxid, protein and gene name then the fasta files will be downloaded like so
-    if choiceg:
-        subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s AND %s[Gene Name] NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, choiceg, workpath), shell=True)
-    # if the user decided to not perform esearch with taxid, protein and gene name then the fasta files will be downloaded like so
-    else:
-        subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
+    subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
 
 
 # GENERATING FASTA FILES FOR EACH SPECIES IN A NEW FOLDER AND CREATE FASTA FILE FOR NON REDUNDANT SEQUENCES WITHIN SPECIES USING SKIPREDUNDANT
@@ -589,7 +605,7 @@ def nonredundantfastafile(df, workpath):
 # DISPLAYS THE RESULTS OF SKIP REDUNDANT TO THE USER, DISPLAYING THE TOTAL NO, OF SPEQUENCES FOR EACH OF THE UNIQUE SEQUENCES
 
 
-def nonredundantsequencecheck(idlist, protchoice, choiceg, workpath):
+def nonredundantsequencecheck(idlist, protchoice, workpath):
     # the function will start by opening the file containing the filtered fasta sequences and determines the names of each of the species using regular expression
     with open('%s/fastafiles/filtered.fasta' % (workpath), 'r') as file:
         filer = file.read().strip()
@@ -637,7 +653,7 @@ def nonredundantsequencecheck(idlist, protchoice, choiceg, workpath):
             # if the user inputs one, the following will occur:
             if choicex == "1":
                 subprocess.call("rm -fr %s" % (workpath), shell=True)
-                #### the main output directory will be deleted because the script will essentially be starting again
+                # the main output directory will be deleted because the script will essentially be starting again
                 print('Lets start again')
                 return choicex, totalseqs
             # if th e user input is 2, the following will occur:
@@ -658,16 +674,171 @@ def nonredundantsequencecheck(idlist, protchoice, choiceg, workpath):
             print('INVALID INPUT, PLEASE TRY AGAIN')
             return choicex, totalseqs
 
+# CREATING THE CONSENSUS SEQUENCES USING TH E FASTA FILE
+
+
+def consensusseq (workpath):
+    # the function will firstly use clastalo to perform multiple alignment on the most recently created file containing fasta sequences
+	print('\nMultiple alignment is underway, please wait')
+	subprocess.call("clustalo -i '%s/fastafiles/filtered.fasta' -o '%s/fastafiles/multialign.fasta'" % (workpath, workpath), shell=True)
+    # the function will then go on to use the results from the multiple alignment to create the consensus sequence using "cons"
+	print('\nCurrently generating the consensus sequence, please wait')
+	subprocess.call("cons -sequence '%s/fastafiles/multialign.fasta' -outseq '%s/fastafiles/consensus.fasta'" % (workpath, workpath), shell=True)
+    # next step is to make a new directory for the containment of the blast results and database
+	os.mkdir('%s/fastafiles/blast' % (workpath))
+    # once the new directory is made the function wil go on to use the fasta file to make the blast database
+	subprocess.call("makeblastdb -dbtype 'prot' -in '%s/fastafiles/filtered.fasta' -out '%s/fastafiles/blast/fastadatabase'" % (workpath, workpath), shell=True)
+    # the function will then go on to run the blast of the newly created consensus sequenes against the newly created blast database
+	print('\nRunning the BLAST of the consensus sequence against the database, please wait')
+	subprocess.call("blastp -query '%s/fastafiles/consensus.fasta' -db '%s/fastafiles/blast/fastadatabase' -num_threads '20' -outfmt 6 -max_hsps 1 -out '%s/fastafiles/blast/blastresult.blastp.out.txt'" % (workpath, workpath, workpath), shell=True)
+
+
+# ASKING THE USER HOW MANY SEQUENCES HE/SHE WOULD LIKE THE CONSEERVATION PLOT TO BE PERFROMED ON AND SETTING A LIMIT OF 250 SEQUENCES
+
+def conservationplot (totalseqs, home_dir, idlist, protein, workpath, df):
+    # the function will first of all make a new directory for the storage of fasta files to be plotted
+	os.mkdir('%s/fastafilesplot' % (workpath))
+    # function will then make another directory for the storage of the image of the conservation plot
+	os.mkdir('%s/conservationplot' % (workpath))
+    # while loop is present to allow mulitple conservation plots to be performed by the user 
+	while True:
+        # the maximum number of sequences to be plotted is the total number of sequences, if there are fewer sequences, the user will be asked how many he/she would like to plot the minimum number of sequences to be plotted will be set to 10
+		if totalseqs < 250:
+			while True:
+				numofseqs = input('\n\nHow many sequences would you like to use  for the  conservation analysis ?\n\n\tMinimum number : 10\n\tMaximum Number : %s\n\nInput a number between the above listed numbers\n' % (totalseqs))
+				numofseqs = int(numofseqs)
+				if numofseqs >= 10 and numofseqs <= totalseqs:
+					break
+				else:
+					print('INVALID INPUT, PLEASE TRY AGAIN')
+        # the maximum number of sequences to be plotted is 250, if there are fewer sequences, the user will be asked how many he/she would like to plot
+        # the minimum number of sequence to be plotted will be 10
+		else:
+			while True:
+				numofseqs = input('How many sequences would you like for the conservation analysis on?\n\n\tMinimum number : 10\n\tMaximum Number : 250\n\nPlease input a number between the above listed numbers\n')
+				numofseqs = int(numofseqs)
+				if numofseqs >= 10 and numofseqs <= 250:
+					break
+				else:
+					print('INVALID INPUT, PLEASE TRY AGAIN')
+        # if the user input it valid, i.e less than 250, less than total number of seqs and more than 10, the function will continue, if this is not the case, the function will restart
+		if (numofseqs <= totalseqs or numofseqs <= 250) and numofseqs >= 10:
+            # the file cotaining the blast results will be used to create a list
+			seqslist = []
+			with open('%s/fastafiles/blast/blastresult.blastp.out.txt' % (workpath), 'r') as file:
+				n = 1
+                # the line in file is split and elemts and index postion will then be appended. this will end when the value of n exceeds the value of numofseqs
+                # only the desired sequences will be appended onto the list
+				for line in file:
+					if n > numofseqs:
+						break
+					seqs = line.split()
+					seqslist.append(seqs[1])
+					n += 1
+			file.close()
+            # the function will then go on to create another file for the containment of the accession numbers of each of the seqeunces the user selected for the conservation plot analysis
+			with open ('%s/fastafilesplot/selectedaccessionnumbers.txt' % (workpath), 'w') as file:
+				n = 1
+				for item in seqslist:
+					file.write('%s\n' % (item))
+			file.close()
+            # the accession numbers within the file are used alongside pullseq to pull the sequences
+            # this also pulls the accession numbers from the fasta file containing the mulltiple alignments
+			subprocess.call("./pullseq -i '%s/fastafiles/multialign.fasta' -n '%s/fastafilesplot/selectedaccessionnumbers.txt' > '%s/fastafilesplot/selectedfastas.fa'" % (workpath, workpath, workpath), shell=True)
+            # this sequences will now be plotted!, this is done using plotcon
+			subprocess.call("plotcon -sequence '%s/fastafilesplot/selectedfastas.fa' -graph svg -gtitle 'Conservation plot of %s protein in %s taxonomy' -gxtitle 'Amino Acid Position' -gytitle 'Conservation' -gdirectory '%s/conservationplot' -goutfile 'ConservationPlot' -auto Y" % (workpath, protein, idlist[0], workpath), shell=True)
+            # an image of the conservation plots is saved to the conservation plot directory created at the beginnning of the function
+			# subprocess.call("display '%s/conservationplot/ConservationPlot.svg' &" % (workpath), shell=True)
+            # the while loop here acts as an errror trap in case the users input is invalid (not y or n)
+			while True:
+                # the user will be asked if they want to create another conservation plot
+                # if the user decides they do and inputs y, the loop will start again
+                # if the user decides they dont want to do this again and inputs n, the function will end
+				choice = input('Would you like to perform conservation analysis with another set of data? y/n\n').strip()
+				if choice == "y":
+					break
+				if choice == "n":
+                    # the data frame will be updated such that it contains only the sequences that the user decided to perform conservation analysis on
+					accessionlist = open('%s/fastafilesplot/selectedaccessionnumbers.txt' % (workpath)).read().splitlines()
+					df = df[df['Prot Accession'].isin(accessionlist)]
+                    # the updated dataframe will be saved into a file for the users viewing. this file will contain information on the sequences that were plotted as well as other information
+					with open('%s/conservationplot/PlottedProteinDataFrame.txt' % (workpath), 'a') as file:
+						file.write('Here is the dataframe of the protein sequences plotted in the protein conservation plot:\n\n')
+						file.write(df.to_string())
+					file.close()
+					return df
+			else:
+				print('INVALID INPUT, PLEASE TRY AGAIN')
+
+
+# SCANNING PROTEIN WITH MOTIFS FROM THE PROSITE DATABASE TO DETERMINE IF THERE ARE ANY KNOWN MOTIFS ASSOCIATED WITH THE SUBSET OF SEQUENCEs
+
+def findmotifs(workpath, df):
+    # first of all the function will make a new folder for the containment of the results from the motif analysis
+	os.mkdir('%s/motifsofplotted' % (workpath))
+    # the function will then go on to create a list containing the accession numbers of all the protein sequences in the plot from the datadframe
+	plottedaccsl = df['Prot Accession'].tolist()
+    # function will then make a new folder for the containment of the fasta sequences that are to undergo motif analysis
+	os.mkdir('%s/motifsofplotted/fastafiles' % (workpath))
+    # next is to create a new file containing all of the accession numbers of the protein sequences, pullseq will be used on this to obtain the sequences
+	for item in plottedaccsl:
+		with open('%s/motifsofplotted/fastafiles/%s.txt' % (workpath, item), 'w') as file:
+			file.write('%s\n' % (item))
+		file.close()
+    # the function will then go onto to use pullseq to get and store each the plotted protein sequnences into their own file
+	print('Searching for plotted proteins with motifs from the PROSITE database, to find out if any known motifs are associated with the subset of sequences in the dataset\n')
+	for item in plottedaccsl:
+		subprocess.call("./pullseq -i '%s/fastafiles/multialign.fasta' -n '%s/motifsofplotted/fastafiles/%s.txt' > '%s/motifsofplotted/fastafiles/%s.fa'" % (workpath, workpath, item, workpath, item), shell=True)
+		subprocess.call("patmatmotifs -sequence '%s/motifsofplotted/fastafiles/%s.fa' -auto Y -outfile '%s/motifsofplotted/fastafiles/%s_motif.txt'" % (workpath, item, workpath, item), shell=True)
+    # function will go on to create a single file of motifs using all the individual motif files
+	subprocess.call("find %s/motifsofplotted/fastafiles -name '*motif.txt' | xargs -I {} cat {} > %s/motifsofplotted/Plottedmotifs.txt" % (workpath, workpath), shell=True)
+	print('motif analysis was completed successfully')
+	print('\n')
+    # obtaining the number of motif hits for each sequence, 
+    # ahcieved by using grep each of the hit counts lines
+	motifhits = subprocess.check_output("cat %s/motifsofplotted/Plottedmotifs.txt | grep 'HitCount'" % (workpath), shell=True)
+	motifs = motifhits.decode("utf-8").strip()
+    # a list of motifs is then created
+	motifslist = motifs.split()
+	plotted = df.shape[0]
+    # starting from the third position (2nd index) and moving in steps of 3
+	seqswithmotif = motifslist[2::3]
+    # gettting the total number of sequences that were plotted
+	totalplotted = len(seqswithmotif)
+    # function procedes to remove all of the sequences that had zero motif hit count
+	seqswithmotifs = [x for x in seqswithmotif if x != "0"]
+    # functio then gets the total number of which corresponds to the total number of sequences with motifs
+    # this needs to be converted into an integer
+	numofmotifseqs = len(seqswithmotifs)
+	numofmotifs = [int(a) for a in seqswithmotifs]
+    # the function the obtains the total number of motifs found by adding up the list of integers
+	totalnumofmotifs = sum(numofmotifs)
+    # function will now create a list of each of the unique motifs that were found
+	uniquemotif = subprocess.check_output("cat '%s/motifsofplotted/Plottedmotifs.txt' | grep 'Motif =' | uniq" % (workpath), shell=True)
+	uniquemotifs = uniquemotif.decode("utf-8").strip()
+    # paths to the files containing the outputdata are then shown to the user if they wish to take a look at them
+	print('Motif analysis summary:\n\nTotal number of sequences analysed/plotted: %s\nTotal number of motifs: %s\nTotal number of Sequences with Motifs: %s\nMotifs found: %s' % (totalplotted, totalnumofmotifs, numofmotifseqs, uniquemotifs))
+	print('\nFor further analysis of the sequences and motifs, please analyse the motif analysis output file. The path to this file are displayed below')
+	print('\n')
+	print('Location of the files generated by this script are:')
+	print('\nConservation Plot Image:\n\t%s/conservationplot/ConservationPlot.svg' % (workpath))
+	print('\nPlotted Sequence dataframe:\n\t%s/conservationplot/PlottedProteinDataFrame.txt' % (workpath))
+	print('\nMotif analysis output:\n\t%s/motifsofplotted/Plottedmotifs.txt' % (workpath))
+	print('\n')
+	print('\n END OF SCRIPT, HOPE THIS WAS USEFUL')
+	print('\nCheerio!')
+
+
 # FUNCTION WHICH RUNS ALL FUNCTIONS
 
 
 def runallfunctions():
     taxonidlist, home_dir = gettaxonid()
     newidlist = checktaxid(taxonidlist)
-    protein = getprotein(newidlist)
     workpath = getworkpath()
-    checkprotein, specieslist, genename, df = checkseq(newidlist, protein, workpath)
-    newprot, updatedidlist, newgene, df1, workpath = change (newidlist, protein, genename, home_dir, df, workpath)
+    protein = getprotein(newidlist)
+    checkprotein, specieslist, df, workpath = checkseq(newidlist, protein, workpath)
+    newprot, updatedidlist, df1, workpath = change (newidlist, protein, df, workpath)
 
     def stdfunctions (workpath):
         min, max, means, stds = checkingstandarddeviation(df1)
@@ -683,9 +854,9 @@ def runallfunctions():
 
     def nonredundantfunctions(parameters):
         mins, max, means, stds, df3, resetchoice, workpath = parameters
-        downloadfasta(newidlist, newprot, newgene, workpath)
+        downloadfasta(newidlist, newprot, workpath)
         proteindict, redundancychoice = nonredundantfastafile(df3, workpath)
-        resetchoice2, totalseq = nonredundantsequencecheck(newidlist, newprot, newgene, workpath)
+        resetchoice2, totalseq = nonredundantsequencecheck(newidlist, newprot, workpath)
         if resetchoice2 == "1":
             return runallfunctions()
         elif resetchoice2 == "2":
@@ -695,6 +866,8 @@ def runallfunctions():
             proteindict, redundancychoice, resetchoice2, totalseq, df3 = nonredundantfunctions(parameters)
         return proteindict, redundancychoice, resetchoice2, totalseq, df3
     proteindict, redundancychoice, resetchoice2, totalseq, df3 = nonredundantfunctions(parameters)
-
+    consensusseq (workpath)
+    plotteddf3 = conservationplot (totalseq, home_dir, newidlist, newprot, workpath, df3)
+    findmotifs(workpath, plotteddf3)
 
 runallfunctions()
