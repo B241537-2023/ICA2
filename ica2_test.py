@@ -6,7 +6,7 @@ from os.path import expanduser
 import pandas as pd
 import time
 
-#######  OBTAININGE TAXON ID FROM USER  #######
+#######  1. OBTAININGE TAXON ID FROM USER  #######
 def gettaxonid ():
     # saving the users home directory path as a variable
     home_dir = "."
@@ -48,4 +48,33 @@ def gettaxonid ():
         taxonidlist = gettaxonid()
     return taxonidlist, home_dir
 
+#######  2. CHECKING FOR MULTIPLE RESULTS  #######
+def checktaxid (idlist):
+    # If length of list is greater than 3, the Taxon esearch generated more than one output
+	if len(idlist) > 3:
+    # Asks the user to input one of the available options from the esearch
+		choice = input('\nPlease type the name of the desired output\n').strip().lower().capitalize()
+		if choice in idlist:
+			for item in idlist:
+                # If the input matched an element from the list, 
+                # items apart from the users choice will be deleted from the list
+				if item == choice:
+					index = idlist.index(item)
+					del idlist[:index]
+					del idlist[index + 2:]
+        # If theinput was not one of the available options on the list, the function will restart
+		else:
+			print('\nYou did not input one of the available choices')
+			idlist = checktaxid(idlist)
+    # taxonIDs get updated, this creates a list, with 3 elements, Taxon name, TaxonID new, TaxonID old.
+    # the old taxon ID will be deleted
+	elif len(idlist) == 3:
+		del idlist[2:]
+    # If list length is 2, this Taxon esearch generated a single taxon.
+	elif len(idlist) == 2:
+		return idlist
+	return idlist
+
+
 taxonidlist, home_dir = gettaxonid()
+newidlist = checktaxid(taxonidlist)
