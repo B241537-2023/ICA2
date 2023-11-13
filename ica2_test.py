@@ -429,7 +429,7 @@ def standarddeviationbelow(df, min, max, mean, std):
                 print('INVALID INPUT, PLEASE TRY AGAIN')
 
 ###### UPDATING THE DATAFRAME AND DISPLAYING THE NEW DATAFRAME TO THE USER
-def updatedataframe (df, idlist, protchoice, home_dir, moment):
+def updatedataframe (df, idlist, protchoice, workpath):
     # function will starting my counting the number of sequences and also the number of unique species within the dataframe
     total = df.shape[0]
     unique = len(df.drop_duplicates('Species Name'))
@@ -462,24 +462,39 @@ def updatedataframe (df, idlist, protchoice, home_dir, moment):
     while True:
         choice = input('\ndo you want to procede with the analysis of this set of data? y/n\n').strip().lower()
         if choice == "y":
-            return choicex, moment
+            return choicex, workpath
         # the user may not want to go ahead with the analysis of this data set, if this is the case the user will be given some options of datasets to procede with 
         elif choice == "n":
             choicex = input('\n\n\nWhich set of data would you like to analyse??\n\n\t1 : Start again, change TaxID and Protein\n\t2 : Revert to dataset before removal of sequences standarded deviations that are above/below mean\n\nPlease input one of the digits above\n').strip()
             # if the user inputs 1, the following will occur:
             if choicex == "1":
                 # the main output foler will be deleted and the users choice of data set will be displayed to them
-                subprocess.call("rm -fr %s/Assignment2_%s" % (home_dir, moment), shell=True)
+                subprocess.call("rm -fr %s" % (workpath), shell=True)
                 print('lets try this again!')
-                return choicex, moment
+                return choicex, workpath
             # if the user inputs 2, the following will	occur:
             elif choicex == "2":
                 print('\nthe script will procede with analysis on the set of data containing the sequences whose standard deviations are considerably above or below the mean')
-                return choicex, moment
+                return choicex, workpath
             else:
                 ('\nINVALID INPUT, PLEASE INPUT EITHER 1 OR 2')
         else:
             print('\nINVALID INPUT, PLEASE TRY AGAIN')
+
+# DOWNLOAD FAST SEQUENCES
+
+
+def downloadfasta(idlist, protchoice, choiceg, workpath):
+    # a new folder is created for the storage of the downloaded fasta files
+	os.mkdir('%s/fastafiles' % (workpath))
+	print('\n\nDOWNLOADING FASTA FILES PLEASE WAIT')
+    # if the user decided to perform esearch with taxid, protein and gene name then the fasta files will be downloaded like so
+	if choiceg:
+		subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s AND %s[Gene Name] NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, choiceg, workpath), shell=True)
+    # if the user decided to not perform esearch with taxid, protein and gene name then the fasta files will be downloaded like so
+	else:
+		subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
+
 
 # FUNCTION WHICH RUNS ALL FUNCTIONS
 
@@ -495,12 +510,14 @@ def runallfunctions():
         min, max, means, stds = checkingstandarddeviation(df1)
         df2 = standarddeviationabove (df1, min, max, means, stds)
         df3 = standarddeviationbelow(df2, min, max, means, stds)
-        resetchoice, workpath =  updatedataframe (df3, updatedidlist, newprot, home_dir, workpath)
+        resetchoice, workpath =  updatedataframe (df3, updatedidlist, newprot, workpath)
         if resetchoice == "1":
             return runallfunctions()
         elif resetchoice == "2":
             min, max, means, stds, df3, resetchoice, workpath = stdfunctions(workpath)
         return min, max, means, stds, df3, resetchoice, workpath
     parameters = stdfunctions(workpath)
+    mins, max, means, stds, df3, resetchoice, workpath = parameters
+    downloadfasta(newidlist, newprot, newgene, workpath)
 
 runallfunctions()
