@@ -166,7 +166,7 @@ def listmaker(workpath):
 # CHECKING SEQUENCES WITH TAXID AND PROTEIN  #
 
 
-def checkseq(idlist, protchoice, home_dir, workpath):
+def checkseq(idlist, protchoice, workpath):
     # Asks the user to input protein search option
     choiceg = ""
     print('\n')
@@ -285,8 +285,6 @@ def checkingstandarddeviation(df):
     mean =df['Prot Length'].mean()
     # using the above three variables, the standard deviation of each of the lengths of proteins within the dataframe can be calculated
     std = df['Prot Length'].std()
-    totalabove = 0
-    totalbelow = 0
     # the mean, standard deviation and the min and max of each protein sequence is then displayed to the user
     print('\n')
     print('Protein Length Statistics:\n\n\tMinimum Length:                  %s\n\tMaximum Length:                  %s\n\tMean Length:                     %.2f\n\tStandard Deviation:             %.2f' % (min, max, mean, std))
@@ -328,8 +326,8 @@ def standarddeviationabove(df, min, max, mean, std):
             a = range(0, totalabove + 1)
             stdabovelist = list(map(str, a))
             # the list is referenced to the user to check if the user input was valid
-            check = any(item in choice for item in stdabovelist) 
-            if check == True:
+            check = any(item in choice for item in stdabovelist)
+            if check:
                 # the input of the user determines the number of sequences that the user wants to remove
                 # if the input is 0, the following will occur
                 if choice == "0":
@@ -342,7 +340,7 @@ def standarddeviationabove(df, min, max, mean, std):
                     # the script will then go on to locate the sequence that need to be removed
                     # once these sequence have been identified they are saved into a new dataframe, once this has occured the index is reset
                     stdaboveremove = df[df.apply( lambda x : x['Prot Length'] > (mean + std*choice), axis=1 )]
-                    stdaboveremove1 = stdaboveremove.reset_index(drop=True, inplace=True)
+                    stdaboveremove.reset_index(drop=True, inplace=True)
                     # these particular sequences are now to be removed from the dataframe and saved to a new one
                     newdf = df[~df.apply( lambda x : x['Prot Length'] > (mean + std*choice), axis=1 )]
                     print('\n')
@@ -360,8 +358,8 @@ def standarddeviationabove(df, min, max, mean, std):
                     else:
                         print('\nINVALID INPUT PLEASE TRY AGAIN')
             else:
-                    print('\n')
-                    print('INVALID INPUT, PLEASE TRY AGAIN')
+                print('\n')
+                print('INVALID INPUT, PLEASE TRY AGAIN')
 
 # DISPLAYING TO THE USER THE NUMBER OF SEQUENCES WHOSE STDs ARE BELOW THE MEAN AND ALLOWING THEIR REMOVAL
 
@@ -407,7 +405,7 @@ def standarddeviationbelow(df, min, max, mean, std):
                     # the script will then go on to locate the sequence that need to be removed
                     # once these sequence have been identified they are saved into a new dataframe, once this has occured the index is reset
                     stdbelowremove = df[df.apply( lambda x : x['Prot Length'] < (mean - std*choice), axis=1 )]
-                    stdbelowremove1 = stdbelowremove.reset_index(drop=True, inplace=True)
+                    stdbelowremove.reset_index(drop=True, inplace=True)
                     # these particular sequences are now to be removed from the dataframe and saved to a new one
                     newdf = df[~df.apply( lambda x : x['Prot Length'] < (mean - std*choice), axis=1 )]
                     print('\n')
@@ -428,8 +426,10 @@ def standarddeviationbelow(df, min, max, mean, std):
                 print('\n')
                 print('INVALID INPUT, PLEASE TRY AGAIN')
 
-###### UPDATING THE DATAFRAME AND DISPLAYING THE NEW DATAFRAME TO THE USER
-def updatedataframe (df, idlist, protchoice, workpath):
+# UPDATING THE DATAFRAME AND DISPLAYING THE NEW DATAFRAME TO THE USER
+
+
+def updatedataframe(df, idlist, protchoice, workpath):
     # function will starting my counting the number of sequences and also the number of unique species within the dataframe
     total = df.shape[0]
     unique = len(df.drop_duplicates('Species Name'))
@@ -486,15 +486,177 @@ def updatedataframe (df, idlist, protchoice, workpath):
 
 def downloadfasta(idlist, protchoice, choiceg, workpath):
     # a new folder is created for the storage of the downloaded fasta files
-	os.mkdir('%s/fastafiles' % (workpath))
-	print('\n\nDOWNLOADING FASTA FILES PLEASE WAIT')
+    os.mkdir('%s/fastafiles' % (workpath))
+    print('\n\nDOWNLOADING FASTA FILES PLEASE WAIT')
     # if the user decided to perform esearch with taxid, protein and gene name then the fasta files will be downloaded like so
-	if choiceg:
-		subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s AND %s[Gene Name] NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, choiceg, workpath), shell=True)
+    if choiceg:
+        subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s AND %s[Gene Name] NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, choiceg, workpath), shell=True)
     # if the user decided to not perform esearch with taxid, protein and gene name then the fasta files will be downloaded like so
-	else:
-		subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
+    else:
+        subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
 
+
+# GENERATING FASTA FILES FOR EACH SPECIES IN A NEW FOLDER AND CREATE FASTA FILE FOR NON REDUNDANT SEQUENCES WITHIN SPECIES USING SKIPREDUNDANT
+
+
+def nonredundantfastafile(df, workpath):
+    # while loop acting as an error trap 
+    while True:
+        # making a list of the required use inputs for this function to work
+        choices = ["y", "n"]
+        # the user will be asked if they want to remove non-redundant sequences
+        choice = input("would you like non-redundant sequences within species to be removed?\nthis will aid in reducing the bias of the consensus sequence\nplease enter either y or n:\n").strip().lower()  
+        if choice in choices:
+            break
+        else:
+            print("INVALID INPUT, PLEASE TRY AGAIN")
+    # lists containing the species TAXID and accession numbers will be created from items in the dataframe
+    protspeciesl = df['Species TaxID'].tolist()
+    acclist = df['Prot Accession'].tolist()
+    # a new dictionary will now be created using these newly created lists, keys and values are appended to the dictionary 
+    # if a particular already exists within the dictionary then the value will append to this existing key creating a list of accession numbers for each species
+    sadict = {}
+    for ele in range(0, len(protspeciesl)):
+        x = protspeciesl[ele]
+        y = acclist[ele]
+        try:
+            sadict[x] += [y]
+        except:
+            sadict[x] = [y]
+    # if the user wishes to remove non redundant sequences and inputs y, the user will be asked to select either 95% threshold for redundancy or 100% threshold for redundancy 
+    if choice == "y":
+    # a while loop is set up to act as an error trap if the user does not input one of the required inputs
+        while True:
+            # asks the user if they would like to select either 95% or 100% threshold for redundancy 
+            options = input("\n would your rather \n\n\t 1 : 95% redundancy threshold\n\t 2 : 100% redundancy threshold\n please enter either 1 or 2\n")
+            # if the user decides that they want to filter non-redundant sequences with 95% redundancy threshold the following will occur:
+            if options == "1":
+                # a new folder for the fasta files that have undergone 95% skip redundancy will be created
+                os.mkdir('%s/fastafiles/species' % (workpath))	
+                # the sadict dictionary will be used to name new files with the species taxID and write the corresponding accession numbers to these newly created files
+                for species in sadict.keys():
+                    accs = sadict[species]
+                    file = open('%s/fastafiles/species/%s_accession.txt' % (workpath, species), 'w')
+                    for accs in accs:
+                        file.write(accs + "\n")
+                    file.close()
+                    # new fasta files are generated using pullseq, fasta sequences are extracted from the main fasta file into the new fasta files
+                    subprocess.call("./pullseq -i '%s/fastafiles/unfiltered.fasta' -n '%s/fastafiles/species/%s_accession.txt' > '%s/fastafiles/species/%s.fa'" % (workpath, workpath, species, workpath, species), shell=True)
+                    # once these new fasta files have been created, the script will perform skip redundant on all fasta files and move the results into the newly created fasta files
+                    subprocess.call("skipredundant -sequences '%s/fastafiles/species/%s.fa' -threshold 95.0 -auto Y -outseq '%s/fastafiles/species/%s.nr'" % (workpath, species, workpath, species), shell=True)
+                # once skip redundant has been performed, these results need to be merged into a single file
+                subprocess.call("find %s/fastafiles/species -name '*.nr' | xargs -I {} cat {} >> %s/fastafiles/filtered.fasta" % (workpath, workpath), shell=True)
+                return sadict, choice
+            # if the user decide that they want to perform skip redundant with 100% threshold, then a very similar process to above will occur
+            elif options == "2":
+                # a new folder for the fasta files that have undergone 100% skip redundancy will be created
+                os.mkdir('%s/fastafiles/species' % (workpath))
+                # the sadict dictionary will be used to name new files with the species taxID and	write the corresponding	accession numbers to these newly created files
+                for species in sadict.keys():
+                    accs = sadict[species]
+                    file = open('%s/fastafiles/species/%s_accession.txt' % (workpath, species), 'w')
+                    for accs in accs:
+                        file.write(accs	+ "\n")
+                    file.close()
+                    #	new fasta files	are generated using pullseq, fasta sequences are extracted from the main fasta file into the new fasta files
+                    subprocess.call("./pullseq -i '%s/fastafiles/unfiltered.fasta' -n '%s/fastafiles/species/%s_accession.txt' > '%s/fastafiles/species/%s.fa'" % (workpath, workpath, species, workpath, species), shell=True)
+                    # once these new fasta files have been created, the script will perform skip redundant on all fasta files and move the results into the newly created fasta files
+                    subprocess.call("skipredundant -sequences '%s/fastafiles/species/%s.fa' -threshold 100.0 -auto Y -outseq '%s/fastafiles/species/%s.nr'" % (workpath, species, workpath, species), shell=True)
+                # once skip redundant has been performed, these results need to be merged into a single file
+                subprocess.call("find %s/fastafiles/species -name '*.nr' | xargs -I {} cat {} >> %s/fastafiles/filtered.fasta" % (workpath, workpath), shell=True)
+                return sadict, choice
+            else:
+                print('\nINVALID INPUT, PLEASE INPUT EITHER 1 OR 2')
+    # if the user does not wish to remove non redundant sequences and inputs n, the following will occur:
+    else:
+        # a new folder will be created for the containment of all fasta sequences that are to be produced
+        os.mkdir('%s/fastafiles/species' % (workpath))
+        # the sadict dictionary will be used to name new files with the species taxID and write the corresponding accession numbers to these newly created files
+        for species in sadict.keys():
+            accs = sadict[species]
+            file = open('%s/fastafiles/species/%s_accession.txt' % (workpath, species), 'w')
+            for accs in accs:
+                file.write(accs + "\n")
+            file.close()
+            # new fasta files are generated using pullseq, fasta sequences are extracted from the main fasta file into the new fasta files
+            subprocess.call("./pullseq -i '%s/fastafiles/unfiltered.fasta' -n '%s/fastafiles/species/%s_accession.txt' > '%s/fastafiles/species/%s.fa'" % (workpath, workpath, species, workpath, species), shell=True)
+        # these results need to be merged into a single file
+        subprocess.call("find %s/fastafiles/species -name '*.fa' | xargs -I {} cat {} >> %s/fastafiles/filtered.fasta" % (workpath, workpath), shell=True)
+    return sadict, choice
+
+
+
+# DISPLAYS THE RESULTS OF SKIP REDUNDANT TO THE USER, DISPLAYING THE TOTAL NO, OF SPEQUENCES FOR EACH OF THE UNIQUE SEQUENCES
+
+
+def nonredundantsequencecheck(idlist, protchoice, choiceg, workpath):
+    # the function will start by opening the file containing the filtered fasta sequences and determines the names of each of the species using regular expression
+    with open('%s/fastafiles/filtered.fasta' % (workpath), 'r') as file:
+        filer = file.read().strip()
+        numofprotspecies = re.findall(r'\[(.*?)]', filer)
+        file.close()
+    # the total number of sequences, as well as the number of unique species are obtained from numofspecies
+    totalseqs = len(numofprotspecies)
+    uniquespecies = len(set(numofprotspecies))
+    print('\n')
+    # the function will display to the user the taxonID, the family of protein, the total number of sequences and species
+    print('Here are the filtered esearch results\n\t-These results are non-redundant:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseqs, uniquespecies))
+    print('\n')
+    # the function will then go on to create a dictionary of species : sequence counts
+    numberoffasta = dict((x, numofprotspecies.count(x)) for x in set(numofprotspecies))
+    print('Here are the 3 most represented species:\n')
+    highestkey = sorted(numberoffasta, key=numberoffasta.get, reverse=True)[:3]
+    highestvalue = []
+    for item in highestkey:
+        value = numberoffasta.get(item)
+        highestvalue.append(value)
+    # the three most represented species will then be displayed to the user
+    print('\nSpecies: %-40s Sequences: %s\nSpecies: %-40s Sequences: %s\nSpecies: %-40s Sequences: %s\n' % (highestkey[0], highestvalue[0], highestkey[1], highestvalue[1], highestkey[2], highestvalue[2]))
+    print('\n')
+    view = input('\nWould you like to view the full list of species and their respective number of FASTA sequences? y/n\n')
+    # if the user does want to view the list of species and their number of sequences, the dictionary created earlier is used to print the species (key) and the number of sequences (value)
+    if view == "y":
+        for key, value in numberoffasta.items():
+            print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
+            # print('\n')
+    # this while loop will act as an error trap, for when/if the user does not input either y or n
+    while True:
+        choicex = 0
+        # the user will be asked to make a decision on whether they would like to contiunue with the analysis of the just displayed list of species and number of sequences
+        choice = input('\ndo you want to procede with the analysis of this set of data? y/n\n').strip().lower()
+        # if the user decides that they are happy to continue, the function will come to an end and the user will be shown choicex and totalseqs
+        if choice == "y":
+            return choicex, totalseqs
+        # if the user is not happy to continue with the analysis, then the user will be asked which data set they would like to procede with 
+        elif choice == "n":
+            # user will hev 3 options:
+            # 1: change to taxon +protein dataset
+            # 2: change to the dataset that had not been filtered for redundancies
+            # 3: change to the dataset before the removal of sequences whose std were a certain level above or below the mean
+            choicex = input('Which dataset would you like to revert to?\n\t1 : Start again, change TaxID and Protein\n\t2 : Continue with the dataset prior to filtering for redundancy\n\t 3 : Continue with the dataset before removal of sequences whose standarded deviations are above/below mean\nPlease input one of the digits\n')
+            # if the user inputs one, the following will occur:
+            if choicex == "1":
+                subprocess.call("rm -fr %s" % (workpath), shell=True)
+                #### the main output directory will be deleted because the script will essentially be starting again
+                print('Lets start again')
+                return choicex, totalseqs
+            # if th e user input is 2, the following will occur:
+            elif choicex == "2":
+                subprocess.call("rm -fr %s/fastafiles" % (workpath), shell=True)
+                # the folder containing the fastafiles will be removed and fasta sequences will be redownloaded
+                print('We shall continue with the dataset that had not been filtered for redundancies')
+                return choicex, totalseqs
+            # if the user input is 3, the following will occur:
+            elif choicex == "3":
+                # the folder containing the fasta files will be removed and the fasta sequences will be redownloaded
+                subprocess.call("rm -fr %s/fastafiles" % (workpath), shell=True)
+                print('we shall continue with the data set that had not had sequences with std of a certain level above or below the mean removed')
+                return choicex, totalseqs
+            else:
+                print('INVALID INPUT, PLEASE TRY AGAIN')
+        else:
+            print('INVALID INPUT, PLEASE TRY AGAIN')
+            return choicex, totalseqs
 
 # FUNCTION WHICH RUNS ALL FUNCTIONS
 
@@ -504,8 +666,9 @@ def runallfunctions():
     newidlist = checktaxid(taxonidlist)
     protein = getprotein(newidlist)
     workpath = getworkpath()
-    checkprotein, specieslist, genename, df = checkseq(newidlist, protein, home_dir, workpath)
+    checkprotein, specieslist, genename, df = checkseq(newidlist, protein, workpath)
     newprot, updatedidlist, newgene, df1, workpath = change (newidlist, protein, genename, home_dir, df, workpath)
+
     def stdfunctions (workpath):
         min, max, means, stds = checkingstandarddeviation(df1)
         df2 = standarddeviationabove (df1, min, max, means, stds)
@@ -517,7 +680,21 @@ def runallfunctions():
             min, max, means, stds, df3, resetchoice, workpath = stdfunctions(workpath)
         return min, max, means, stds, df3, resetchoice, workpath
     parameters = stdfunctions(workpath)
-    mins, max, means, stds, df3, resetchoice, workpath = parameters
-    downloadfasta(newidlist, newprot, newgene, workpath)
+
+    def nonredundantfunctions(parameters):
+        mins, max, means, stds, df3, resetchoice, workpath = parameters
+        downloadfasta(newidlist, newprot, newgene, workpath)
+        proteindict, redundancychoice = nonredundantfastafile(df3, workpath)
+        resetchoice2, totalseq = nonredundantsequencecheck(newidlist, newprot, newgene, workpath)
+        if resetchoice2 == "1":
+            return runallfunctions()
+        elif resetchoice2 == "2":
+            proteindict, redundancychoice, resetchoice2, totalseq, df3 = nonredundantfunctions(parameters)
+        elif resetchoice2 == "3":
+            min, max, means, stds, df3, resetchoice, workpath = stdfunctions(workpath)
+            proteindict, redundancychoice, resetchoice2, totalseq, df3 = nonredundantfunctions(parameters)
+        return proteindict, redundancychoice, resetchoice2, totalseq, df3
+    proteindict, redundancychoice, resetchoice2, totalseq, df3 = nonredundantfunctions(parameters)
+
 
 runallfunctions()
