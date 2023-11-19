@@ -11,7 +11,6 @@ def gettaxonid():
     # saving the users home directory path as a variable
     home_dir = "."
     userchoice = input('\nPlease input the taxonomic group\n').strip().lower()
-    print('\n')
     # Creating a list of numbers 0-9 and a list of the letter of the alphabet to check against the users input
     nums = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     letters = list(string.ascii_lowercase)
@@ -19,7 +18,6 @@ def gettaxonid():
     checknums = any(ele in userchoice for ele in nums)
     # Checks if user input was alphabetical, and then perform esearch
     if checkletters == True and checknums == False:
-        print('\n')
         print('esearch results are displayed below:\n')
         # Displays esearch results in genebank format
         subprocess.call("esearch -db taxonomy -query %s | efetch -format Gb" %
@@ -131,7 +129,7 @@ def getworkpath():
                 print("Invalid option. Please choose 1, 2, or 3.")
     
 
-# OTAINING NAME OF PROTEIN
+# OBTAINING NAME OF PROTEIN
 
 def getprotein (idlist):
     # Ask the user to input the protein of interest
@@ -168,9 +166,26 @@ def listmaker(workpath):
 
 def checkseq(idlist, protchoice, workpath):
      
+    # Asks the user to input search option whether include Paritial sequences or not
+    while(True):
+        user_response = input(f"Do you want \n1. to include partial sequences\n2. not ot incluede partial sequences\nEnter the number:\n")
+        if user_response == '1':
+            partialflag = True
+            print('\n')
+            break
+        elif user_response == '2':
+            partialflag = False
+            print('\n')
+            break
+        else:
+            print("Invalid option. Please choose 1 or 2")
+            print('\n')
     # performing esearch
-    equery = "esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format docsum > %s/docsum.txt" % (idlist[1], protchoice, workpath)
-    print("Searching ...\n")
+    if partialflag:
+        equery = "esearch -db protein -query 'txid%s[Organism:exp] AND %s ' | efetch -format docsum > %s/docsum.txt" % (idlist[1], protchoice, workpath)
+    else:
+        equery = "esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format docsum > %s/docsum.txt" % (idlist[1], protchoice, workpath) 
+    print("SEARCHING ...\n")
     subprocess.call(equery, shell=True)
     # Running previous function will make all lists required to create the panda dataframe from results   
     protspecieslist, protspeciestaxidlist, protspeciesaccessionlist, protlengthlistint = listmaker(workpath)
@@ -187,36 +202,42 @@ def checkseq(idlist, protchoice, workpath):
     uniquespecies = len(df.drop_duplicates('Species Name'))
     # the following will occur if the total number of sequences found from the esearch is less than 10
     if totalseq < 10:
-        print('fewer than 10 sequences were found\n')
-        choices = input('Are you sure to do new search? y/n\n').strip().lower()
-        # continue search with other protein name
-        if choices == "y":
-            print('\n')
-            checkseq(idlist, workpath)
-        # stop search
-        elif choices == "n":
-            print('\nStop search\n')
-            exit(0)
-        else:
-            print('\nINVALID INPUT PLEASE TRY AGAIN')
-    # the following will occur if the total number of unique sequences found	from the esearch is less than 10
+        print('fewer than 10 sequences were found')
+        print('\n')
+        print('fewer than 10 sequences were found:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq - 1, uniquespecies -1))
+        print('\n')
+        # Creating a list of species names 
+        protspeciesl = df['Species Name'].tolist()
+        # Creating a dictionary of Species : Sequence counts
+        numberoffasta = dict((x, protspeciesl.count(x)) for x in set(protspeciesl))
+        print('The number of FASTA sequences for each of the different species are displayed below:\n')
+        # all the unique species and their number of sequences are then displayed to the user
+        for key, value in numberoffasta.items():
+            print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
+        print('\n')
+        print('The results contain redundant sequences.\nFASTA sequences will be downloaded later, and redundant sequences will be removed.')
+        print('\n')
+        return protchoice, protspeciesl, df, partialflag, workpath
+    # the following will occur if the total number of unique species found from the esearch is less than 5
     if uniquespecies < 5:
         print('\n')
-        print('Fewer than 5 unique sequences were found:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq, uniquespecies))
-        choices = input('Are you sure to do new search? y/n\n').strip().lower()
-        # continue search with other protein name
-        if choices == "y":
-            print('\n')
-            checkseq(idlist, workpath)
-        # stop search
-        elif choices == "n":
-            print('\nStop search\n')
-            exit(0)
-        else:
-            print('\nINVALID INPUT PLEASE TRY AGAIN')
+        print('Fewer than 5 unique sequences were found:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq - 1, uniquespecies - 1))
+        print('\n')
+        # Creating a list of species names
+        protspeciesl = df['Species Name'].tolist()
+        # Creating a dictionary of Species : Sequence counts
+        numberoffasta = dict((x, protspeciesl.count(x)) for x in set(protspeciesl))
+        print('The number of FASTA sequences for each of the different species are displayed below:\n')
+        # all the unique species and their number of sequences are then displayed	to the user
+        for key, value in numberoffasta.items():
+            print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
+        print('\n')
+        print('The results contain redundant sequences.\nFASTA sequences will be downloaded later, and redundant sequences will be removed.')
+        return protchoice, protspecieslist, df, partialflag, workpath
+
     # Prints esearch output summary: total number of sequences, number of unique species
     print('\n')
-    print('Results from the esearch are displayed below:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq, uniquespecies))
+    print('Results from the esearch are displayed below:\n\nTaxon          :   %s\nProtein Family :   %s\nTotal sequences:   %s\nNo. of Species :   %s' % (idlist[0], protchoice, totalseq - 1, uniquespecies - 1))
     print('\n')
     # Creating a list of species names
     protspeciesl = df['Species Name'].tolist()
@@ -238,22 +259,21 @@ def checkseq(idlist, protchoice, workpath):
     # Print the key of the dictionary (species), followed by the count (value) will be printed to the user
     for key, value in numberoffasta.items():
         print('Species: %-40s' 'Number of FASTA sequences: %s' %(key, numberoffasta[key]))
-    return protchoice, protspeciesl, df, workpath
+    return protchoice, protspeciesl, df, partialflag, workpath
 
 
 # DETERMINING IF THE OUTPUT IS THE DESIRED OUTPUT  #
 
 
-def change(idlist, protchoice, df, workpath):
+def change(idlist, protchoice, df, partialflag, workpath):
     # While True loop acts as an error trap
     while True:
-        finalanswer = input('\nWould you like to soldier on with the analsis? y/n\n').strip().lower()
+        finalanswer = input('\nWould you like to proceed on with the sequences? y/n\n').strip().lower()
         # Creating the list of available options for the user
         changelist = ['1', '2', '3']
-        print('\n\n')
         # If finalanswer == 'y', the function ends
         if finalanswer == 'y':
-            return protchoice, idlist, df, workpath
+            return protchoice, idlist, df, partialflag, workpath
         # If final answer == 'n', the script will ask the user which of the available esearch inputs they would like to use.
         elif finalanswer == 'n':
             print('\n')
@@ -265,33 +285,30 @@ def change(idlist, protchoice, df, workpath):
                 # Checks user input against the earlier created list ['1', '2', '3']
                 # if the user input is 1, the following will occur
                 if tochange == changelist[0]:
-                    subprocess.call('rm -fr %s' % (workpath), shell=True)
                     idlist, home_dir = gettaxonid()
                     idlist = checktaxid(idlist)
-                    protchoice, protspecieslist, df, workpath = checkseq(idlist, protchoice, workpath)
-                    protchoice, idlist, df, workpath = change(idlist, protchoice, df, workpath)
-                    return protchoice, idlist, df, workpath
+                    protchoice, protspecieslist, df, partialflag, workpath = checkseq(idlist, protchoice, workpath)
+                    protchoice, idlist, df, partialflag, workpath = change(idlist, protchoice, df, partialflag, workpath)
+                    return protchoice, idlist, df, partialflag, workpath
                 # If input is 2, the following will occur
                 elif tochange == changelist[1]:
-                    subprocess.call('rm -fr %s' % (workpath), shell=True)
                     protchoice = getprotein(idlist)
-                    protchoice, protspecieslist, df, workpath = checkseq(idlist, protchoice, workpath)
-                    protchoice, idlist, df, workpath  = change(idlist, protchoice, df, workpath)
-                    return protchoice, idlist, df, workpath
+                    protchoice, protspecieslist, df, partialflag, workpath = checkseq(idlist, protchoice, workpath)
+                    protchoice, idlist, df, partialflag, workpath  = change(idlist, protchoice, df, partialflag, workpath)
+                    return protchoice, idlist, df, partialflag, workpath
                 # If input is 3, the following will occur
                 elif tochange == changelist[2]:
-                    subprocess.call('rm -fr %s' % (workpath), shell=True)
                     idlist, home_dir = gettaxonid()
-                    idlist = checktaxonid(idlist)
+                    idlist = checktaxid(idlist)
                     protchoice  = getprotein(idlist)
-                    protchoice, protspecieslist, df, workpath = checkseq(idlist, protchoice, workpath)
-                    protchoice, idlist, df, workpath = change(idlist, protchoice, home_dir, df, workpath)
-                    return protchoice, idlist, df, workpath
+                    protchoice, protspecieslist, df, partialflag, workpath = checkseq(idlist, protchoice, workpath)
+                    protchoice, idlist, df, partialflag, workpath = change(idlist, protchoice, df, partialflag, workpath)
+                    return protchoice, idlist, df, partialflag, workpath
                 else:
                     print('INVALID INPUT')
         else:
             print('please try again')
-            return protchoice, idlist, df, workpath
+            return protchoice, idlist, df, partialflag, workpath
 
 # WARNING THE USER OF THE PRESENCE OF SEQUENCES WITH LOW/HIGH STANDARD DEVIATIONS
 
@@ -337,7 +354,7 @@ def standarddeviationabove(df, min, max, mean, std):
                 stdabove = df[df.apply( lambda x : x['Prot Length'] > (mean + std*n), axis=1 )].shape[0]
                 if stdabove == 0:
                     break
-                print('\t%s\t:\t[REMOVE SEQUENCES] %s Sequences     that are     %s Standard Deviations above the Mean' % (n, stdabove, n))
+                print('\t%s:\t[REMOVE SEQUENCES] %4s Sequences     that are     %s Standard Deviations above the Mean' % (n, stdabove, n))
                 totalabove = n
                 n += 1
             # the user will be faced with a decision based on information obtained from the above commands
@@ -402,7 +419,7 @@ def standarddeviationbelow(df, min, max, mean, std):
                 stdbelow = df[df.apply( lambda x : x['Prot Length'] < (mean - std*n), axis=1 )].shape[0]
                 if stdbelow == 0:
                     break
-                print('\t%s\t:\t[REMOVE SEQUENCES] %s Sequences     that are     %s Standard Deviations below the Mean' % (n, stdbelow, n))
+                print('\t%s:\t[REMOVE SEQUENCES] %4s Sequences     that are     %s Standard Deviations below the Mean' % (n, stdbelow, n))
                 totalbelow = n
                 n += 1
             # the user will be faced with a decision based on information obtained from the above commands
@@ -481,7 +498,7 @@ def updatedataframe(df, idlist, protchoice, workpath):
     # the function will then go on to ask the user if they wish to procede with the analysis
     choicex = 'empty'
     while True:
-        choice = input('\ndo you want to procede with the analysis of this set of data? y/n\n').strip().lower()
+        choice = input('\ndo you want to proceed with the analysis of this set of data? y/n\n').strip().lower()
         if choice == "y":
             return choicex, workpath
         # the user may not want to go ahead with the analysis of this data set, if this is the case the user will be given some options of datasets to procede with 
@@ -505,12 +522,14 @@ def updatedataframe(df, idlist, protchoice, workpath):
 # DOWNLOAD FAST SEQUENCES
 
 
-def downloadfasta(idlist, protchoice, workpath):
+def downloadfasta(idlist, protchoice, partialflag, workpath):
     # a new folder is created for the storage of the downloaded fasta files
     os.mkdir('%s/fastafiles' % (workpath))
     print('\n\nDOWNLOADING FASTA FILES PLEASE WAIT')
-    subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
-
+    if partialflag:
+        subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s ' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True)
+    else:
+        subprocess.call("esearch -db protein -query 'txid%s[Organism:exp] AND %s NOT PARTIAL' | efetch -format fasta > %s/fastafiles/unfiltered.fasta" % (idlist[1], protchoice, workpath), shell=True) 
 
 # GENERATING FASTA FILES FOR EACH SPECIES IN A NEW FOLDER AND CREATE FASTA FILE FOR NON REDUNDANT SEQUENCES WITHIN SPECIES USING SKIPREDUNDANT
 
@@ -837,8 +856,8 @@ def runallfunctions():
     newidlist = checktaxid(taxonidlist)
     workpath = getworkpath()
     protein = getprotein(newidlist)
-    checkprotein, specieslist, df, workpath = checkseq(newidlist, protein, workpath)
-    newprot, updatedidlist, df1, workpath = change (newidlist, protein, df, workpath)
+    checkprotein, specieslist, df, partialflag, workpath = checkseq(newidlist, protein, workpath)
+    newprot, updatedidlist, df1, partialflag, workpath = change (newidlist, protein, df, partialflag, workpath)
 
     def stdfunctions (workpath):
         min, max, means, stds = checkingstandarddeviation(df1)
@@ -854,7 +873,7 @@ def runallfunctions():
 
     def nonredundantfunctions(parameters):
         mins, max, means, stds, df3, resetchoice, workpath = parameters
-        downloadfasta(newidlist, newprot, workpath)
+        downloadfasta(newidlist, newprot, partialflag, workpath)
         proteindict, redundancychoice = nonredundantfastafile(df3, workpath)
         resetchoice2, totalseq = nonredundantsequencecheck(newidlist, newprot, workpath)
         if resetchoice2 == "1":
